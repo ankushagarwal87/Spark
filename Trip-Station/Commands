@@ -1,0 +1,25 @@
+spark-shell
+
+val input1 = sc.textFile("/home/hduser/Spark/data/trips/*")
+val header1 = input1.first
+val trips = input1.filter(_ != header1).map(_.split(","))
+
+val input2 = sc.textFile("/home/hduser/Spark/data/stations/*")
+val header2 = input2.first
+val stations = input2.filter(_ != header2).map(_.split(","))
+
+val stations = input2.filter(_ != header2).map(_.split(",")).keyBy(_(0).toInt)
+
+val startTrips = stations.join(trips.keyBy(_(4).toInt))
+val endTrips = stations.join(trips.keyBy(_(7).toInt))
+
+startTrips.toDebugString
+endTrips.toDebugString
+
+startTrips.count
+endTrips.count	
+
+import org.apache.spark.HashPartitioner
+val stations = input2.filter(_ != header2).map(_.split(",")).keyBy(_(0).toInt).partitionBy(new HashPartitioner(trips.partitions.size))
+
+

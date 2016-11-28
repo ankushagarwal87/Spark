@@ -1,0 +1,29 @@
+println("Users: ")
+println(scala.io.Source.fromFile("/resources/LabData/users.txt").mkString)
+
+println("Followers: ")
+println(scala.io.Source.fromFile("/resources/LabData/followers.txt").mkString)
+
+import org.apache.spark.graphx._
+
+val users = (sc.textFile("/resources/LabData/users.txt").map(line => line.split(",")).map(parts => (parts.head.toLong, parts.tail)))
+
+users.take(5).foreach(println)
+
+val followerGraph = GraphLoader.edgeListFile(sc, "/resources/LabData/followers.txt")
+
+val graph = followerGraph.outerJoinVertices(users) {
+    case (uid, deg, Some(attrList)) => attrList
+    case (uid, deg, None) => Array.empty[String]
+}
+
+val subgraph = graph.subgraph(vpred = (vid, attr) => attr.size == 2)
+
+val pagerankGraph = subgraph.pageRank(0.001)
+
+val userInfoWithPageRank = subgraph.outerJoinVertices(pagerankGraph.vertices) {
+    case (uid, attrList, Some(pr)) => (pr, attrList.toList)
+    case (uid, attrList, None) => (0.0, attrList.toList)
+}
+
+println(userInfoWithPageRank.vertices.top(5)(Ordering.by(_._2._1)).mkString("\n"))

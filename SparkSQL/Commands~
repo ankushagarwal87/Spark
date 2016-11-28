@@ -1,0 +1,10 @@
+val lines = scala.io.Source.fromFile("/resources/LabData/nycweather.csv").mkString
+println(lines)
+val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+import sqlContext.implicits._
+case class Weather(date: String, temp: Int, precipitation: Double)
+val weather = sc.textFile("/resources/LabData/nycweather.csv").map(_.split(",")). map(w => Weather(w(0), w(1).trim.toInt, w(2).trim.toDouble)).toDF()
+
+
+
+

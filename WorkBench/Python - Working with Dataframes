@@ -1,0 +1,37 @@
+Loading in a DataFrame
+
+1)import pandas as pd
+mtcars = pd.read_csv('https://ibm.box.com/shared/static/f1dhhjnzjwxmy2c1ys2whvrgz05d1pui.csv')
+
+2)sqlContext = SQLContext(sc)
+
+3)Creating Spark DataFrames
+sdf = sqlContext.createDataFrame(mtcars) 
+sdf.printSchema()
+
+4)Displays the content of the DataFrame
+sdf.show(5)
+
+5)Selecting columns
+sdf.select('mpg').show(5)
+
+6)Filtering Data
+sdf.filter(sdf['mpg'] < 18).show(5)
+
+7)Operating on Columns
+sdf.withColumn('wtTon', sdf['wt'] * 0.45).show(6)
+
+8)Grouping, Aggregation
+sdf.groupby(['cyl']).agg({"wt": "AVG"}).show(5)
+car_counts = sdf.groupby(['cyl']).agg({"wt": "count"}).sort("count(wt)", ascending=False).show(5)
+
+9)Running SQL Queries from Spark DataFrames
+# Register this DataFrame as a table.
+sdf.registerTempTable("cars")
+
+# SQL statements can be run by using the sql method
+highgearcars = sqlContext.sql("SELECT gear FROM cars WHERE cyl >= 4 AND cyl <= 9")
+highgearcars.show(6)
+
+
+

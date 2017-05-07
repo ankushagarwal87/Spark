@@ -1,0 +1,133 @@
+1)First, create an RDD
+val readme = sc.textFile("/resources/LabData/README.md")
+
+2) Count the number of items in the RDD using this command:
+readme.count()
+
+3)find the first item in the RDD
+readme.first()
+
+4)Use the filter transformation to return a new RDD with a subset of the items in the file
+val linesWithSpark = readme.filter(line => line.contains("Spark"))
+linesWithSpark.count()
+
+5)To find out how many lines contains the word “Spark”
+readme.filter(line => line.contains("Spark")).count()
+
+
+RDD Operations
+
+6)line from that readme file with the most words in it
+readme.map(line => line.split(" ").size).
+                    reduce((a, b) => if (a > b) a else b)
+
+7) run with the max function
+import java.lang.Math
+readme.map(line => line.split(" ").size).
+        reduce((a, b) => Math.max(a, b))
+
+8) word count on the readme file
+val wordCounts = readme.flatMap(line => line.split(" ")).
+                        map(word => (word, 1)).
+                        reduceByKey((a,b) => a + b)
+wordCounts.collect().foreach(println)
+
+9)what is the most frequent CHARACTER in the README
+val wordCounts = readme.flatMap(line => line.split(" ")).
+                        map(word => (word, 1)).
+                        reduceByKey((a,b) => a + b).
+                        reduce((a, b) => if (a._2 > b._2) a else b)
+
+println(wordCounts)
+
+
+Analysing a log file
+
+1) create a RDD by loading in a log file
+val logFile = sc.textFile("/resources/LabData/notebook.log")
+
+2)Filter out the lines that contains INFO
+val info = logFile.filter(line => line.contains("INFO"))
+
+3)Count the lines
+info.count()
+
+4)Count the lines with Spark in it by combining transformation and action
+info.filter(line => line.contains("spark")).count()
+
+5)Fetch those lines as an array of Strings
+info.filter(line => line.contains("spark")).collect() foreach println
+
+6)graph of an RDD using the toDebugString command
+println(info.toDebugString)
+
+
+Joining RDDs
+
+1)create RDDs for the README and the CHANGES file.
+val readmeFile = sc.textFile("/resources/LabData/README.md")
+val pom = sc.textFile("/resources/LabData/pom.xml")
+
+2)How many Spark keywords are in each file
+println(readmeFile.filter(line => line.contains("Spark")).count())
+println(pom.filter(line => line.contains("Spark")).count())
+
+3)WordCount on each RDD so that the results are (K,V) pairs of (word,count)
+val readmeCount = readmeFile.
+                    flatMap(line => line.split(" ")).
+                    map(word => (word, 1)).
+                    reduceByKey(_ + _)
+
+val pomCount = pom.
+                flatMap(line => line.split(" ")).
+                map(word => (word, 1)).
+                reduceByKey(_ + _)
+
+4)collect function on it
+println("Readme Count\n")
+readmeCount.collect() foreach println
+println("Pom Count\n")
+pomCount.collect() foreach println
+
+5) join these two counts together and then cache
+val joined = readmeCount.join(pomCount)
+joined.cache()
+joined.collect.foreach(println)
+
+6) combine the values together to get the total count
+val joinedSum = joined.map(k => (k._1, (k._2)._1 + (k._2)._2))
+joinedSum.collect() foreach println
+println("Joined Individial\n")
+joined.take(5).foreach(println)
+println("\n\nJoined Sum\n")
+joinedSum.take(5).foreach(println)
+
+
+Shared variables
+
+1)create a broadcast variable
+val broadcastVar = sc.broadcast(Array(1,2,3))
+
+2)get the value
+broadcastVar.value
+
+3)Create the accumulator variable
+val accum = sc.accumulator(0)
+
+4)parallelize an array of four integers and run it through a loop to add each integer value to the accumulator variable
+sc.parallelize(Array(1,2,3,4)).foreach(x => accum += x)
+
+5)current value of the accumulator variable
+accum.value
+
+Key-value pairs
+1)Create a key-value pair of two characters
+val pair = ('a', 'b')
+
+2) access the value of the first index using the ._1 method and ._2 method for the 2nd.
+pair._1
+pair._2
+
+
+
+

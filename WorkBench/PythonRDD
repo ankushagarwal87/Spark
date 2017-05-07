@@ -1,0 +1,84 @@
+Analyzing a log file
+
+1)First, create an RDD by loading in a log file:
+logFile = sc.textFile("/resources/LabData/notebook.log")
+
+2)Filter out the lines that contains INFO
+info = logFile.filter(lambda line: "INFO" in line)
+
+3)Count the lines
+info.count()
+
+4)Count the lines with "spark" in it by combining transformation and action.
+info.filter(lambda line: "spark" in line).count()
+
+5)Fetch those lines as an array of Strings
+info.filter(lambda line: "spark" in line).collect()
+
+6)View the graph of an RDD 
+print info.toDebugString() 
+
+
+Joining RDDs
+
+1)create RDDs for the README and the CHANGES file
+readmeFile = sc.textFile("/resources/LabData/README.md")
+pomFile = sc.textFile("/resources/LabData/pom.xml")
+
+2)How many Spark keywords are in each file
+print readmeFile.filter(lambda line: "Spark" in line).count()
+print pomFile.filter(lambda line: "Spark" in line).count()
+
+3)WordCount on each RDD so that the results are (K,V) pairs of (word,count)
+readmeCount = readmeFile.                    \
+    flatMap(lambda line: line.split(" ")).   \
+    map(lambda word: (word, 1)).             \
+    reduceByKey(lambda a, b: a + b)
+    
+pomCount = pomFile.                          \
+    flatMap(lambda line: line.split(" ")).   \
+    map(lambda word: (word, 1)).            \
+    reduceByKey(lambda a, b: a + b)
+
+4)The join function combines the two datasets (K,V) and (K,W) together and get (K, (V,W))
+joined = readmeCount.join(pomCount)
+
+5)Print the value to the console
+joined.collect()
+
+6)Combine the values together to get the total count
+joinedSum = joined.map(lambda k: (k[0], (k[1][0]+k[1][1])))
+
+
+Shared variables
+
+1)Create a broadcast variable
+broadcastVar = sc.broadcast([1,2,3])
+
+2)To get the value
+broadcastVar.value
+
+3)Create the accumulator 
+variableaccum = sc.accumulator(0)
+
+4)add each integer value to the accumulator variable
+rdd = sc.parallelize([1,2,3,4])
+def f(x):
+    global accum
+    accum += x
+
+5) iterate through each element of the rdd and apply the function f on it
+rdd.foreach(f)
+
+6) get the current value of the accumulator variable
+accum.value
+
+
+Key-value pairs
+1)Create a key-value pair of two characters
+pair = ('a', 'b')
+
+2)To access the value of the first index use [0] and [1] method for the 2nd
+print pair[0]
+print pair[1]
+

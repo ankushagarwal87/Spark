@@ -1,0 +1,212 @@
+1)Hello! First before we start creating our graph, we will need to the import the following libraries:
+    org.apache.spark._
+    org.apache.spark.graphx._
+    org.apache.spark.rdd.RDD
+import org.apache.spark._
+import org.apache.spark.graphx._
+import org.apache.spark.rdd.RDD
+
+2)Now next we will create the "Vertices" of our graph. Let's try to make it a simple, easy-to-relate graph. Let's use "Facebook" as an example. We will create an Array called facebook_vertices that consists of 3 people and 2 pages.
+val facebook_vertices = Array((1L, ("Billy Bill", "Person")), (2L, ("Jacob Johnson", "Person")), (3L, ("Andrew Smith", "Person")), (4L, ("Iron Man Fan Page", "Page")), (5L, ("Captain America Fan Page", "Page")))
+
+3)Next, we will create the relationships of each one of them. The variable relationships will become the "Edges" of our graph.
+val relationships = Array(Edge(1L, 2L, "Friends"), Edge(1L, 3L, "Friends"), Edge(2L, 4L, "Follower"), Edge(2L, 5L, "Follower"), Edge(3L, 5L, "Follower"))
+
+4)Now we have our Vertices (facebook_vertices) and Edges (relationships). However, they are just Arrays. When we create our our Graph, these variables need to be RDDs. To create RDDs, we will use the parallelize function of SparkContext (sc). We will also have to make sure that the correct types are labeled in type format.
+val vertexRDD: RDD[(Long, (String, String))] = sc.parallelize(facebook_vertices)
+val edgeRDD: RDD[Edge[String]] = sc.parallelize(relationships)
+
+5)Now we have our Vertices and Edges in proper format, but before we define our graph we just need to define one user - which will be "fallback" user. This user will be defaulty connected to any edges that lead to a non-existant Vertex. Let's called it "Self" - since you can be friends with "Yourself" and have a page that follows "Itself."
+val defaultvertex = ("Self", "Missing")
+
+6)This variable is just a tuple. Now we can move onto creating our Graph. We will create a variable called facebook which will be our instantiate of Graph with 3 variables - vertexRDD, edgeRDD, and defaultvertex.
+val facebook = Graph(vertexRDD, edgeRDD, defaultvertex)
+
+7)Let's try printing out the vertices component of facebook
+print(facebook.vertices)
+
+8)This is the vertices of our of graph. You can do the same for Edges by using the edges components
+print(facebook.edges)
+
+9)So right now vertices is called as a whole, so we will need to seperate the results we want using the filter function. Then we will make cases for each attribute and then define a condition to be met.
+facebook.vertices.filter { case (id, (name, user_type)) => user_type == "Person" }.count
+
+10)Let's see if you are able to use the filter function on facebook.edges to find how many people follow the "Captain America Fan Page"
+facebook.edges.filter { case (relation) => relation.dstId == 5L && relation.attr == "Follower"}.count
+
+11)However, there is an easier way to create views, and that is with the EdgeTriplet class. This class contains information about the Edge and Vertex because of it logical join. We will discuss more later on, however here is a little taste of what EdgeTriplets can do.
+val selected = facebook.triplets.filter { case (triplet) => triplet.srcAttr._1 == "Billy Bill"}.collect
+for (person <- selected) {
+    print(person.srcAttr._1)
+    print(" is ")
+    print(person.attr)
+    print(" with ")
+    println(person.dstAttr._1)
+}
+
+12)we are going to try to create an RDD vertex called characters all in one step! Let's see if you can combine the two steps we learned earlier
+val characters: RDD[(VertexId, (String, String))] = sc.parallelize(Array((1L, ("Homer Simpson", "Person")), (2L, ("Bart Simpson", "Person")), (3L, ("Marge Simpson", "Person")), (4L, ("Milhouse Houten", "Page"))))
+
+13)We can also create an EdgeRDD variable called simpson_relationships in one step too! It is done similarly as the previous step, so if your stuck, take a look there!
+val simpson_relationships : RDD[Edge[String]] = sc.parallelize(Array(Edge(1L, 2L, "Father"), Edge(3L, 1L, "Wife"), Edge(2L, 4L, "Friends")))
+
+14)Now let's create our graph with our Vertices (characters), Edges (simpson_relationships), and defaultvertex called the_simpsons.
+val the_simpsons = Graph(characters, simpson_relationships, defaultvertex)
+
+15)Let's try to extract how many vertices there are in this graph by using numVertices function.
+facebook.numVertices
+
+16)let's find out the number of edges using numEdges function.
+facebook.numEdges
+
+17)Let's find Billy's outDegree information by filtering it with a id of 1 and using the collect function afterwards. Let's save it as Billy_outDegree.
+var Billy_outDegree = facebook.outDegrees.filter{ case(id, outdegree) => id == 1}.collect
+
+18)Awesome! Now let's go ahead print out Billy_outDegree. However, we will need to index it using () brackets instead of [] brackets. The index should be 0.
+print(Billy_outDegree(0))
+
+19)Now let's take a look at the degrees operator. We will do something different than before, and go ahead and use a for loop to cycle through the total degree of each vertex (inDegree + OutDegree)
+for (degree <- facebook.degrees.collect) { println(degree) }
+
+20)Unfortunately, GraphX does not have any build-in visualization, so it's important to know how to create views. Let's go ahead and trying printing out all of the vertices.
+for (vertex <- facebook.vertices.collect) {
+    println(vertex)
+}
+
+21)Now let's do the same with edges just so we have an idea of all the vertices and edges.
+for (edge <- facebook.edges.collect) {
+    println(edge)}
+
+22)let's use triplets to create a view of the graph. Just like in last two examples, we will use the collect function on .triplets, however we will denote the Source Attribute (.srcAttr), the edge attribute (.attr), and the Destination Attribute (.dstAttr) all in the same println statement to denote each relationship.
+for (triplet <- facebook.triplets.collect) {
+  print(triplet.srcAttr._1)
+  print(" is a ")
+  print(triplet.attr)
+  print(" of ")
+  println(triplet.dstAttr._1)
+}
+
+23)Pagerank is a algorithm that measures the importance of each vertex by directly correlating it's importance with edges (properties and quantity). There are two options for Pagerank, static and dynamic. Static runs for a fixed number of iterations while dynamtic runs until the rank converges.
+val rank = facebook.pageRank(0.1).vertices.collect
+for (rankee <- rank) {
+    println(rankee)}
+
+Property Operators
+24)So with the mapVertices function, it is similar to how you used a filter function previously
+val facebook_temp = facebook.mapVertices((id, user_type) => if (id == 1) ("Billy D. Bill", "Person") else user_type)
+for (vertex <- facebook_temp.vertices.collect) {
+    println(vertex)
+}
+
+25)Modify the original graph (facebook) and return the graph into a variable called facebook_temp2. We will now change the "Captain America Fan Page" to "Captain America Fan Page is the Best!".
+val facebook_temp2 = facebook.mapVertices((id, user_type) => if (id == 5) ("Captain America Fan Page is the Best!", "Page") else user_type)
+for (vertex <- facebook_temp2.vertices.collect) {
+    println(vertex)
+}
+
+26)Now we will create use facebook_temp as the variable of our new graph from our original graph facebook. So let's try modifying the relationship of Andrew to a "Supreme Follower" of the Iron Man Fan Page
+val facebook_temp = facebook.mapEdges((edge) => if (edge.srcId == 3) "Supreme Follower" else edge.attr)
+for (edges <- facebook_temp.edges.collect) {
+    println(edges)
+}
+
+27)Awesome! Look like you're getting the hang of things! Now let's move onto a similar concept called mapEdges
+val facebook_temp2 = facebook.mapEdges((edge) => if (edge.attr == "Friends") "Friend" else edge.attr)
+for (edges <- facebook_temp2.edges.collect) {
+    println(edges)}
+
+28)so once you have the correct graph, we will save it as the new facebook	
+val facebook = facebook_temp2
+
+29)Now lets try making a new variable called facebook_temp3 which will a modified version of facebook by using the mapTriplets function to change the relationship of Billy Bill and Jacob Johnson to "Best-Friend". Now, it may be easy to specify one condition, so let's pretend Jacob has more friends, so we want to make sure that you specify Billy Bill and Jacob Johnson in this condition.
+val facebook_temp3 = facebook_temp2.mapTriplets((triplet) => if (triplet.srcAttr._1 == "Billy Bill" && triplet.dstAttr._1 == "Jacob Johnson") "Best-Friend" else triplet.attr)
+for (triplet <- facebook_temp3.triplets.collect) {
+print(triplet.srcAttr._1)
+print(" is a ")
+print(triplet.attr)
+print(" of ")
+println(triplet.dstAttr._1)
+}
+
+30)Using the new facebook - facebook_temp, print out a view of the graph and compute facebook's inverse PageRank with a value of 0.l
+val facebook_temp = facebook.reverse
+for (triplet <- facebook_temp.triplets.collect) {
+print(triplet.srcAttr._1)
+print(" is a ")
+print(triplet.attr)
+print(" of ")
+println(triplet.dstAttr._1)
+}
+println("Page Rank values --------------")
+for (rankee <- facebook_temp.pageRank(0.1).vertices.collect) {
+    println(rankee)}
+
+31)Now let's use our original facebook variable, and try to create a subgraph called facebook_subgraph that will contain only People aka - no Pages!
+val facebook_subgraph = facebook.subgraph(vpred = (id, user_type) => user_type._2 == "Person")
+for (triplet <- facebook_subgraph.triplets.collect) {
+print(triplet.srcAttr._1)
+print(" is a ")
+print(triplet.attr)
+print(" of ")
+println(triplet.dstAttr._1)
+}
+
+32)Now let's try to using the subgraph function again, but only specify relationships (or edges) that are "Followers". This time, use the subgraph function, and confirm your results without defining a variable!
+for (triplet <- facebook.subgraph(epred = (edgetriplet) => edgetriplet.attr == "Follower").triplets.collect) {
+    print(triplet.srcAttr._1)
+    print(" is a ")
+    print(triplet.attr)
+    print(" of ")
+    println(triplet.dstAttr._1)}
+
+33)A quick example of this is by taking our facebook graph and running the mask function with facebook_subgraph as a parameter. What do you think will happen? Print and confirm the results without saving a variable for it!
+for (triplet <- facebook.mask(facebook_subgraph).triplets.collect) {
+print(triplet.srcAttr._1)
+print(" is a ")
+print(triplet.attr)
+print(" of ")
+println(triplet.dstAttr._1)
+}
+
+34)The next Structual Operator we will be looking at is the groupEdges function. This function is particularly useful for graph that have repeating or similar relationships (edges) between vertices. It will merge multiple edges that are similar together!
+val vertexRDD2: RDD[(Long, (String, String))] = sc.parallelize(Array((1L, ("Billy Bill", "Person")), (2L, ("Jacob Johnson", "Person")), (3L, ("Andrew Smith", "Person"))))
+val edgeRDD2: RDD[Edge[String]] = sc.parallelize(Array(Edge(1L, 2L, "Friends"), Edge(1L, 3L, "Friends"), Edge(1L, 3L, "Friends")))
+var simple_facebook = Graph(vertexRDD2, edgeRDD2, defaultvertex)
+
+for (triplet <- simple_facebook.triplets.collect) {
+print(triplet.srcAttr._1)
+print(" is ")
+print(triplet.attr)
+print(" with ")
+println(triplet.dstAttr._1)
+}
+
+35)Let's run the partitionBy function with the above details and save it as simple_facebook_partitioned.
+val simple_facebook_partitioned = simple_facebook.partitionBy(PartitionStrategy.EdgePartition1D)
+
+36)That may be a lot to take in. Let's quickly review what you need to do. Create a new variable called new_simple_facebook that is the groupEdges function ran on simple_facebook_partitioned with the parameter merge equal to edge1 and edge2 (respresenting the edge's attribute) and only selecting edge1.
+val new_simple_facebook = simple_facebook_partitioned.groupEdges(merge = (edge1, edge2) => edge1)
+for (triplet <- new_simple_facebook.triplets.collect) {
+print(triplet.srcAttr._1)
+print(" is ")
+print(triplet.attr)
+print(" with ")
+println(triplet.dstAttr._1)
+}
+
+37)We will be using the same variables as our first graph, however if there are any changes, please add a number 2 so the original variable is not overwritten. For example: vertexRDD would become vertexRDD2
+val vertexRDD2: RDD[(Long, (String, String))] = sc.parallelize(Array((1L, ("Billy Bill", "Person")), (2L, ("Jacob Johnson", "Person")), (3L, ("Stan Smith", "Person")), (4L, ("Homer Simpson", "Person")), (5L, ("Clark Kent", "Person")), (6L, ("James Smith", "Person"))))
+val edgeRDD2: RDD[Edge[String]] = sc.parallelize(Array(Edge(2L, 1L, "Friends"), Edge(2L, 5L, "Friends"), Edge(3L, 1L, "Friends"), Edge(3L, 4L, "Friends"), Edge(3L, 5L, "Friends"), Edge(3L, 6L, "Friends"), Edge(4L, 6L, "Friends"), Edge(5L, 1L, "Friends"), Edge(5L, 1L, "Friends"), Edge(5L, 6L, "Friends"), Edge(6L, 7L, "Friends")))
+var defaultvertex = ("Self", "Missing")
+var facebook2 = Graph(vertexRDD2, edgeRDD2, defaultvertex)
+
+for (triplet <- facebook2.triplets.collect) {
+print(triplet.srcAttr._1)
+print(" is ")
+print(triplet.attr)
+print(" with ")
+println(triplet.dstAttr._1)
+}
+
+38)
+

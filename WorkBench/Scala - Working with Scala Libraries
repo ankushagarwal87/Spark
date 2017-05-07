@@ -1,0 +1,145 @@
+Creating a Spark application using Spark SQL
+
+1)look at the nycweather data
+val lines = scala.io.Source.fromFile("/resources/LabData/nycweather.csv").mkString
+println(lines)
+
+2)define the SparkSQL context
+val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+
+3)import a library for creating a SchemaRDD
+import sqlContext.implicits._
+
+4)Create a case class in Scala that defines the schema of the table
+case class Weather(date: String, temp: Int, precipitation: Double)
+
+5)Create the RDD of the Weather object
+val weather = sc.textFile("/resources/LabData/nycweather.csv").map(_.split(",")). map(w => Weather(w(0), w(1).trim.toInt, w(2).trim.toDouble)).toDF()
+
+6)register the RDD as a table
+weather.registerTempTable("weather")
+
+7)get a list of the hottest dates with some precipitation
+val hottest_with_precip = sqlContext.sql("SELECT * FROM weather WHERE precipitation > 0.0 ORDER BY temp DESC")
+hottest_with_precip.collect()
+
+8) Print the top hottest days with some precipitation out to the console
+hottest_with_precip.map(x => ("Date: " + x(0), "Temp : " + x(1), "Precip: " + x(2))).top(10).foreach(println)
+
+
+
+
+Creating a Spark application using MLlib
+
+1)Import the needed packages for K-Means algorithm and Vector packages
+import org.apache.spark.mllib.clustering.KMeans
+import org.apache.spark.mllib.linalg.Vectors
+
+2)Create an RDD
+val taxiFile = sc.textFile("/resources/LabData/nyctaxisub.csv")
+
+3)Determine the number of rows in taxiFile
+taxiFile.count()
+
+4)Cleanse the data
+val taxiData=taxiFile.filter(_.contains("2013")).
+    filter(_.split(",")(3)!="" ).    //dropoff_latitude
+    filter(_.split(",")(4)!="")      //dropoff_longitude
+
+5)To fence the area roughly to New York City
+val taxiFence=taxiData.
+    filter(_.split(",")(3).toDouble>40.70).
+    filter(_.split(",")(3).toDouble<40.86).
+    filter(_.split(",")(4).toDouble>(-74.02)).
+    filter(_.split(",")(4).toDouble<(-73.93))
+taxiFence.count()
+
+6)Create Vectors with the latitudes and longitudes that will be used as input to the K-Means algorithm.
+val taxi=taxiFence.
+    map{
+        line=>Vectors.dense(
+            line.split(',').slice(3,5).map(_ .toDouble)
+        )
+    }
+val iterationCount=10
+val clusterCount=3
+
+val model=KMeans.train(taxi,clusterCount,iterationCount)
+val clusterCenters=model.clusterCenters.map(_.toArray)
+
+clusterCenters.foreach(lines=>println(lines(0),lines(1)))
+
+
+
+Creating a Spark application using Spark Streaming
+
+1)Turn off logging so that you can see the output of the application and Import the required libraries	
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
+Logger.getLogger("org").setLevel(Level.OFF)
+Logger.getLogger("akka").setLevel(Level.OFF)
+
+import org.apache.spark._
+import org.apache.spark.streaming._
+import org.apache.spark.streaming.StreamingContext._
+
+2)Create the StreamingContext by using the existing SparkContext (sc). It will be using a 1 second batch interval, which means the stream is divided to 1 second batches and each batch becomes a RDD
+val ssc = new StreamingContext(sc,Seconds(1))
+
+3)Create the socket stream that connects to the localhost socket 7777. This matches the port that the Python script is listening on. Each batch from the Stream be a lines RDD
+val lines = ssc.socketTextStream("localhost",7777)
+
+4)split up the lines on each comma and mapping pass(15), which is the vendor, and pass(7), which is the passenger count. Then this is reduced by key resulting in a summary of number of passengers by vendor
+val pass = lines.map(_.split(",")).
+    map(pass=>(pass(15),pass(7).toInt)).
+    reduceByKey(_+_)
+
+5)Print out to the console
+pass.print()
+
+6)The next two line starts the stream
+ssc.start()
+ssc.awaitTermination()
+
+
+
+Creating a Spark application using GraphX
+
+1)Users.txt is a set of users and followers is the relationship between the users
+println("Users: ")
+println(scala.io.Source.fromFile("/resources/LabData/users.txt").mkString)
+
+println("Followers: ")
+println(scala.io.Source.fromFile("/resources/LabData/followers.txt").mkString)
+
+2)Import the GraphX package
+import org.apache.spark.graphx._
+
+3)Create the users RDD and parse into tuples of user id and attribute list
+val users = (sc.textFile("/resources/LabData/users.txt").map(line => line.split(",")).map(parts => (parts.head.toLong, parts.tail)))
+users.take(5).foreach(println)	
+
+4)Parse the edge data, which is already in userId -> userId format
+val followerGraph = GraphLoader.edgeListFile(sc, "/resources/LabData/followers.txt")
+
+5)Attach the user attributes
+val graph = followerGraph.outerJoinVertices(users) {
+    case (uid, deg, Some(attrList)) => attrList
+    case (uid, deg, None) => Array.empty[String]
+}
+
+6)Restrict the graph to users with usernames and names
+val subgraph = graph.subgraph(vpred = (vid, attr) => attr.size == 2)
+
+7)Compute the PageRank
+val pagerankGraph = subgraph.pageRank(0.001)
+
+8)Get the attributes of the top pagerank users
+val userInfoWithPageRank = subgraph.outerJoinVertices(pagerankGraph.vertices) {
+    case (uid, attrList, Some(pr)) => (pr, attrList.toList)
+    case (uid, attrList, None) => (0.0, attrList.toList)
+}
+
+9)Print the line out
+println(userInfoWithPageRank.vertices.top(5)(Ordering.by(_._2._1)).mkString("\n"))
+
